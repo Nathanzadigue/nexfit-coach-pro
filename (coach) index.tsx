@@ -1,0 +1,172 @@
+import { db } from "@/src/firebase/config";
+import { useAuth } from "@/src/store/AuthContext";
+import { router } from "expo-router";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+export default function CoachHomeScreen() {
+  const { user } = useAuth();
+
+  const [pendingCount, setPendingCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  /* ---------- FETCH PENDING BOOKINGS ---------- */
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchPendingBookings = async () => {
+      try {
+        const q = query(
+          collection(db, "bookings"),
+          where("coachId", "==", user.uid),
+          where("status", "==", "pending")
+        );
+
+        const snap = await getDocs(q);
+        setPendingCount(snap.size);
+      } catch (error) {
+        console.error("Error loading pending bookings:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPendingBookings();
+  }, [user]);
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.container}>
+        {/* HEADER */}
+        <Text style={styles.title}>Coach dashboard</Text>
+
+        {/* BOOKINGS ALERT */}
+        <Pressable
+          style={styles.card}
+          onPress={() => router.push("/(coach)/planning-request")}
+        >
+          <View style={styles.row}>
+            <Text style={styles.cardTitle}>
+              Reservations to manage
+            </Text>
+
+            {pendingCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {pendingCount}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <Text style={styles.cardText}>
+            {pendingCount > 0
+              ? `You have ${pendingCount} pending reservation${
+                  pendingCount > 1 ? "s" : ""
+                }`
+              : "No pending reservations"}
+          </Text>
+        </Pressable>
+
+        {/* INFO CARD */}
+        <View style={styles.infoCard}>
+          <Text style={styles.infoTitle}>
+            💡 Tip
+          </Text>
+          <Text style={styles.infoText}>
+            Accept or decline reservations quickly to keep your
+            schedule up to date.
+          </Text>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+/* ---------- STYLES ---------- */
+
+const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: "#F5F5F5",
+  },
+  container: {
+    padding: 20,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: "700",
+    marginBottom: 24,
+    color: "#000",
+  },
+  card: {
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#000",
+  },
+  cardText: {
+    fontSize: 15,
+    color: "#555",
+  },
+  badge: {
+    backgroundColor: "#E53935",
+    minWidth: 26,
+    height: 26,
+    borderRadius: 13,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 6,
+  },
+  badgeText: {
+    color: "#FFF",
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  infoCard: {
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    padding: 20,
+  },
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  infoText: {
+    fontSize: 14,
+    color: "#555",
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+});
