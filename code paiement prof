@@ -1,0 +1,90 @@
+import * as React from "react";
+import { Button, Text, View, StyleSheet, Alert } from "react-native";
+import {
+  StripeProvider,
+  CardField,
+  useConfirmPayment,
+} from "@stripe/stripe-react-native";
+ 
+export const API_URL =
+  "{{YOUR_SERVER_URL}}";
+export const PUBLISHABLE_KEY =
+  "{{YOUR_API_KEY}}";
+ 
+export default function App() {
+  const { confirmPayment, loading } = useConfirmPayment();
+ 
+  const fetchPaymentIntentClientSecret = async () => {
+    const res = await fetch(`${API_URL}/createPaymentIntent`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        currency: "usd",
+        amount: 99 * 100,
+        payment_method_types: ["card"],
+      }),
+    })
+      .then((response) => response.json())
+      .then((data) => data)
+      .catch((error) => {
+        console.log(error);
+      });
+ 
+    return res?.client_secret;
+  };
+ 
+  const handlePayPress = async () => {
+    const billingDetails = {
+      email: "jenny.rosen@example.com",
+    };
+ 
+    // Fetch the intent client secret from the backend.
+    const clientSecret = await fetchPaymentIntentClientSecret();
+ 
+    // Confirm the payment with the card details
+    const { paymentIntent, error } = await confirmPayment(clientSecret, {
+      paymentMethodType: "Card",
+      paymentMethodData: {
+        billingDetails,
+      },
+    });
+ 
+    if (error) {
+      console.log("Payment confirmation error", error);
+      Alert.alert('Error!');
+    } else if (paymentIntent) {
+      console.log("Success from promise", paymentIntent);
+      Alert.alert('Payment Succesful!');
+    }
+  };
+ 
+  return (
+    <StripeProvider publishableKey={PUBLISHABLE_KEY}>
+      <View style={styles.container}>
+        <CardField
+          postalCodeEnabled={false}
+          autofocus
+          style={styles.cardField}
+          cardStyle={{
+            textColor: "#1c1c1c",
+          }}
+        />
+        <Button onPress={handlePayPress} title="Pay" disabled={loading} />
+        
+      </View>
+    </StripeProvider>
+  );
+}
+ 
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 8,
+  },
+  cardField: {
+    height: 40,
+  },
+});
