@@ -14,8 +14,10 @@ import {
   FlatList,
   GestureResponderEvent,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -55,7 +57,7 @@ export default function SearchScreen() {
   const [sortedServices, setSortedServices] = useState<ServiceItem[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // États pour les filtres
+  // Filter states
   const [filters, setFilters] = useState<FilterState>({
     coachingMode: 'all',
     date: null,
@@ -64,7 +66,7 @@ export default function SearchScreen() {
     useTimeFilter: false,
   });
   
-  // État pour le tri
+  // Sorting state
   const [sortBy, setSortBy] = useState<SortOption>('none');
   const [showSortOptions, setShowSortOptions] = useState(false);
   
@@ -74,13 +76,23 @@ export default function SearchScreen() {
   const screenWidth = Dimensions.get('window').width;
   const timeSliderWidth = screenWidth - 80;
   
-  // États pour le glissement
+  // Drag states
   const [dragging, setDragging] = useState<'start' | 'end' | null>(null);
   const sliderRef = useRef<View>(null);
   const [sliderX, setSliderX] = useState(0);
   
-  // Référence pour le ScrollView du modal
+  // Reference for modal ScrollView
   const modalScrollViewRef = useRef<ScrollView>(null);
+
+  /* ---------- STATUS BAR CONFIG ---------- */
+
+  useEffect(() => {
+    StatusBar.setBarStyle('light-content');
+    
+    return () => {
+      StatusBar.setBarStyle('default');
+    };
+  }, []);
 
   /* ---------- FETCH SERVICES ---------- */
 
@@ -130,7 +142,7 @@ export default function SearchScreen() {
   useEffect(() => {
     let results = services;
 
-    // Filtre par texte
+    // Text filter
     if (query.trim()) {
       const q = query.trim().toLowerCase();
       results = results.filter(
@@ -141,7 +153,7 @@ export default function SearchScreen() {
       );
     }
 
-    // Filtre par mode de coaching
+    // Coaching mode filter
     if (filters.coachingMode !== 'all') {
       results = results.filter((item) => {
         if (filters.coachingMode === 'remote') {
@@ -153,7 +165,7 @@ export default function SearchScreen() {
       });
     }
 
-    // Filtre par date
+    // Date filter
     if (filters.date) {
       const selectedDate = new Date(filters.date);
       selectedDate.setHours(0, 0, 0, 0);
@@ -168,7 +180,7 @@ export default function SearchScreen() {
       });
     }
 
-    // Filtre par plage horaire (toujours disponible)
+    // Time range filter (always available)
     if (filters.useTimeFilter && (filters.startHour !== 6 || filters.endHour !== 22)) {
       results = results.filter((item) => {
         if (!item.dateTime) return false;
@@ -218,7 +230,7 @@ export default function SearchScreen() {
         break;
       case 'none':
       default:
-        // Pas de tri
+        // No sorting
         break;
     }
     
@@ -236,7 +248,7 @@ export default function SearchScreen() {
     const days = [];
     const startDay = firstDay.getDay();
     
-    // Jours du mois précédent
+    // Previous month days
     const prevMonthLastDay = new Date(year, month, 0).getDate();
     for (let i = startDay - 1; i >= 0; i--) {
       const dayDate = new Date(year, month - 1, prevMonthLastDay - i);
@@ -248,7 +260,7 @@ export default function SearchScreen() {
       });
     }
     
-    // Jours du mois courant
+    // Current month days
     const daysInMonth = lastDay.getDate();
     for (let i = 1; i <= daysInMonth; i++) {
       const dayDate = new Date(year, month, i);
@@ -260,8 +272,8 @@ export default function SearchScreen() {
       });
     }
     
-    // Jours du mois suivant
-    const totalCells = 42; // 6 semaines
+    // Next month days
+    const totalCells = 42; // 6 weeks
     const nextMonthDays = totalCells - days.length;
     for (let i = 1; i <= nextMonthDays; i++) {
       const dayDate = new Date(year, month + 1, i);
@@ -315,15 +327,15 @@ export default function SearchScreen() {
     const relativeX = pageX - sliderX;
     const hour = Math.max(0, Math.min(24, Math.round((relativeX / timeSliderWidth) * 24)));
     
-    // Déterminer quel curseur est le plus proche
+    // Determine which handle is closer
     const startDistance = Math.abs(hour - filters.startHour);
     const endDistance = Math.abs(hour - filters.endHour);
     
     if (startDistance < endDistance && hour < filters.endHour - 1) {
-      // Plus proche du début
+      // Closer to start handle
       setFilters({...filters, startHour: hour});
     } else if (hour > filters.startHour + 1) {
-      // Plus proche de la fin
+      // Closer to end handle
       setFilters({...filters, endHour: hour});
     }
   };
@@ -332,7 +344,7 @@ export default function SearchScreen() {
     if (!filters.useTimeFilter) return;
     setDragging(handle);
     
-    // Désactiver le scroll du modal lorsqu'on commence à glisser un curseur
+    // Disable modal scroll when starting to drag a handle
     if (modalScrollViewRef.current) {
       modalScrollViewRef.current.setNativeProps({ scrollEnabled: false });
     }
@@ -359,14 +371,14 @@ export default function SearchScreen() {
   const handleResponderRelease = () => {
     setDragging(null);
     
-    // Réactiver le scroll du modal lorsqu'on relâche le curseur
+    // Re-enable modal scroll when releasing the handle
     if (modalScrollViewRef.current) {
       modalScrollViewRef.current.setNativeProps({ scrollEnabled: true });
     }
   };
 
   const formatHour = (hour: number) => {
-    return `${hour.toString().padStart(2, '0')}h`;
+    return `${hour.toString().padStart(2, '0')}:00`;
   };
 
   const clearTimeFilter = () => {
@@ -395,14 +407,14 @@ export default function SearchScreen() {
   /* ---------- HELPER FUNCTIONS ---------- */
 
   const formatDate = (date?: Date) => {
-    if (!date) return "À définir";
+    if (!date) return "To be scheduled";
     
     const options: Intl.DateTimeFormatOptions = { 
       weekday: 'short', 
       day: 'numeric',
       month: 'short',
     };
-    return date.toLocaleDateString('fr-FR', options);
+    return date.toLocaleDateString('en-US', options);
   };
 
   const formatTime = (date?: Date) => {
@@ -412,12 +424,12 @@ export default function SearchScreen() {
       hour: '2-digit', 
       minute: '2-digit' 
     };
-    return date.toLocaleTimeString('fr-FR', options);
+    return date.toLocaleTimeString('en-US', options);
   };
 
   const formatFilterDate = (date: Date | null) => {
-    if (!date) return "Choisir une date";
-    return date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+    if (!date) return "Choose a date";
+    return date.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' });
   };
 
   const getDurationText = (minutes?: number) => {
@@ -436,8 +448,8 @@ export default function SearchScreen() {
 
   const getCoachingModeText = (mode: string) => {
     switch (mode) {
-      case "remote": return "📍 À distance";
-      case "in-person": return "👤 En présentiel";
+      case "remote": return "📍 Remote";
+      case "in-person": return "👤 In-person";
       case "no-preference": return "🤷 Flexible";
       default: return mode;
     }
@@ -445,12 +457,12 @@ export default function SearchScreen() {
 
   const getSortLabel = (sortOption: SortOption) => {
     switch (sortOption) {
-      case 'none': return 'Trier par';
-      case 'price-asc': return 'Prix croissant';
-      case 'price-desc': return 'Prix décroissant';
-      case 'date-asc': return 'Date proche';
-      case 'date-desc': return 'Date lointaine';
-      default: return 'Trier par';
+      case 'none': return 'Sort by';
+      case 'price-asc': return 'Price (low to high)';
+      case 'price-desc': return 'Price (high to low)';
+      case 'date-asc': return 'Date (earliest)';
+      case 'date-desc': return 'Date (latest)';
+      default: return 'Sort by';
     }
   };
 
@@ -458,8 +470,8 @@ export default function SearchScreen() {
 
   const renderCalendar = () => {
     const days = getDaysInMonth(selectedMonth);
-    const monthName = selectedMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-    const dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+    const monthName = selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     
     const weeks = [];
     for (let i = 0; i < days.length; i += 7) {
@@ -528,9 +540,9 @@ export default function SearchScreen() {
     return (
       <View style={styles.timeSliderContainer}>
         <View style={styles.timeSliderHeader}>
-          <Text style={styles.timeSliderTitle}>Plage horaire</Text>
+          <Text style={styles.timeSliderTitle}>Time range</Text>
           <View style={styles.timeSwitchContainer}>
-            <Text style={styles.timeSwitchLabel}>Activer</Text>
+            <Text style={styles.timeSwitchLabel}>Enable</Text>
             <Pressable
               style={[
                 styles.timeSwitch,
@@ -547,7 +559,7 @@ export default function SearchScreen() {
         </View>
         
         <View style={[styles.timeSliderContent, !filters.useTimeFilter && styles.timeSliderDisabled]}>
-          {/* SUPPRIMÉ : Les labels horaires (00h, 6h, 12h, 18h, 24h) */}
+          {/* REMOVED: Time labels (00:00, 06:00, 12:00, 18:00, 24:00) */}
           
           <View 
             ref={sliderRef}
@@ -564,7 +576,7 @@ export default function SearchScreen() {
               onPress={handleSliderPress}
               disabled={!filters.useTimeFilter}
             >
-              {/* Plage sélectionnée */}
+              {/* Selected range */}
               <View 
                 style={[
                   styles.timeSliderRange,
@@ -576,13 +588,13 @@ export default function SearchScreen() {
                 ]} 
               />
               
-              {/* Zone de détection agrandie pour le curseur début */}
+              {/* Enlarged touch area for start handle */}
               <View
                 style={[
                   styles.timeSliderTouchArea,
                   styles.timeSliderTouchAreaStart,
                   { 
-                    left: startPosition - 20, // Zone agrandie
+                    left: startPosition - 20, // Enlarged area
                   }
                 ]}
                 pointerEvents="box-only"
@@ -591,7 +603,7 @@ export default function SearchScreen() {
                   style={[
                     styles.timeSliderHandle,
                     styles.timeSliderHandleStart,
-                    { left: 8 }, // Ajusté pour être centré dans la zone de touch
+                    { left: 8 }, // Adjusted to be centered in touch area
                   ]}
                   onPressIn={() => handleHandlePress('start')}
                   disabled={!filters.useTimeFilter}
@@ -605,13 +617,13 @@ export default function SearchScreen() {
                 </Pressable>
               </View>
               
-              {/* Zone de détection agrandie pour le curseur fin */}
+              {/* Enlarged touch area for end handle */}
               <View
                 style={[
                   styles.timeSliderTouchArea,
                   styles.timeSliderTouchAreaEnd,
                   { 
-                    left: endPosition - 20, // Zone agrandie
+                    left: endPosition - 20, // Enlarged area
                   }
                 ]}
                 pointerEvents="box-only"
@@ -620,7 +632,7 @@ export default function SearchScreen() {
                   style={[
                     styles.timeSliderHandle,
                     styles.timeSliderHandleEnd,
-                    { left: 8 }, // Ajusté pour être centré dans la zone de touch
+                    { left: 8 }, // Adjusted to be centered in touch area
                   ]}
                   onPressIn={() => handleHandlePress('end')}
                   disabled={!filters.useTimeFilter}
@@ -647,7 +659,7 @@ export default function SearchScreen() {
           
           {!filters.useTimeFilter && (
             <Text style={styles.timeSliderHint}>
-              Activez le filtre horaire pour afficher uniquement les services dans cette plage
+              Enable time filter to show only services within this range
             </Text>
           )}
         </View>
@@ -686,7 +698,7 @@ export default function SearchScreen() {
                 styles.sortOptionText,
                 sortBy === 'none' && styles.sortOptionTextActive
               ]}>
-                Aucun tri
+                No sorting
               </Text>
               {sortBy === 'none' && (
                 <Ionicons name="checkmark" size={18} color="#000" />
@@ -708,7 +720,7 @@ export default function SearchScreen() {
                 styles.sortOptionText,
                 sortBy === 'price-asc' && styles.sortOptionTextActive
               ]}>
-                Prix croissant
+                Price (low to high)
               </Text>
               {sortBy === 'price-asc' && (
                 <Ionicons name="checkmark" size={18} color="#000" />
@@ -730,7 +742,7 @@ export default function SearchScreen() {
                 styles.sortOptionText,
                 sortBy === 'price-desc' && styles.sortOptionTextActive
               ]}>
-                Prix décroissant
+                Price (high to low)
               </Text>
               {sortBy === 'price-desc' && (
                 <Ionicons name="checkmark" size={18} color="#000" />
@@ -752,7 +764,7 @@ export default function SearchScreen() {
                 styles.sortOptionText,
                 sortBy === 'date-asc' && styles.sortOptionTextActive
               ]}>
-                Date proche
+                Date (earliest)
               </Text>
               {sortBy === 'date-asc' && (
                 <Ionicons name="checkmark" size={18} color="#000" />
@@ -774,7 +786,7 @@ export default function SearchScreen() {
                 styles.sortOptionText,
                 sortBy === 'date-desc' && styles.sortOptionTextActive
               ]}>
-                Date lointaine
+                Date (latest)
               </Text>
               {sortBy === 'date-desc' && (
                 <Ionicons name="checkmark" size={18} color="#000" />
@@ -798,7 +810,7 @@ export default function SearchScreen() {
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Filtres de recherche</Text>
+            <Text style={styles.modalTitle}>Search Filters</Text>
             <Pressable onPress={() => setShowFilters(false)}>
               <Ionicons name="close" size={24} color="#000" />
             </Pressable>
@@ -809,9 +821,9 @@ export default function SearchScreen() {
             style={styles.modalBody}
             scrollEnabled={true}
           >
-            {/* Mode de coaching */}
+            {/* Coaching mode */}
             <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>Mode de coaching</Text>
+              <Text style={styles.filterSectionTitle}>Coaching Mode</Text>
               <View style={styles.coachingModeButtons}>
                 <Pressable
                   style={[
@@ -824,7 +836,7 @@ export default function SearchScreen() {
                     styles.coachingModeButtonText,
                     filters.coachingMode === 'all' && styles.coachingModeButtonTextActive
                   ]}>
-                    Tous les modes
+                    All modes
                   </Text>
                 </Pressable>
                 
@@ -840,7 +852,7 @@ export default function SearchScreen() {
                     styles.coachingModeButtonText,
                     filters.coachingMode === 'remote' && styles.coachingModeButtonTextActive
                   ]}>
-                    À distance
+                    Remote
                   </Text>
                 </Pressable>
                 
@@ -856,27 +868,27 @@ export default function SearchScreen() {
                     styles.coachingModeButtonText,
                     filters.coachingMode === 'in-person' && styles.coachingModeButtonTextActive
                   ]}>
-                    En présentiel
+                    In-person
                   </Text>
                 </Pressable>
               </View>
               <Text style={styles.filterHint}>
-                Les services "Flexible" apparaissent dans les deux modes
+                "Flexible" services appear in both modes
               </Text>
             </View>
 
-            {/* Plage horaire (toujours visible) - DÉPLACÉ AVANT LA DATE */}
+            {/* Time range (always visible) - MOVED BEFORE DATE */}
             <View style={styles.filterSection}>
               {renderTimeSlider()}
             </View>
 
-            {/* Calendrier - DÉPLACÉ APRÈS LA PLAGE HORAIRE */}
+            {/* Calendar - MOVED AFTER TIME RANGE */}
             <View style={styles.filterSection}>
               <View style={styles.dateFilterHeader}>
                 <Text style={styles.filterSectionTitle}>Date</Text>
                 {filters.date && (
                   <Pressable onPress={clearDateFilter} style={styles.dateClearButton}>
-                    <Text style={styles.dateClearButtonText}>Effacer</Text>
+                    <Text style={styles.dateClearButtonText}>Clear</Text>
                   </Pressable>
                 )}
               </View>
@@ -900,14 +912,14 @@ export default function SearchScreen() {
               onPress={clearFilters}
             >
               <Ionicons name="close-circle-outline" size={18} color="#FF3B30" />
-              <Text style={styles.clearAllButtonText}>Tout effacer</Text>
+              <Text style={styles.clearAllButtonText}>Clear all</Text>
             </Pressable>
             
             <Pressable
               style={styles.applyButton}
               onPress={() => setShowFilters(false)}
             >
-              <Text style={styles.applyButtonText}>Appliquer</Text>
+              <Text style={styles.applyButtonText}>Apply</Text>
             </Pressable>
           </View>
         </View>
@@ -930,7 +942,7 @@ export default function SearchScreen() {
           router.push(`/(client)/service/${item.id}`)
         }
       >
-        {/* SPORT ET PRIX EN LIGNE */}
+        {/* SPORT AND PRICE IN LINE */}
         <View style={styles.headerRow}>
           <Text style={styles.sport}>
             {item.sport}
@@ -948,7 +960,7 @@ export default function SearchScreen() {
           </Text>
         </View>
 
-        {/* DATE ET HEURE */}
+        {/* DATE AND TIME */}
         {hasDateTime ? (
           <View style={styles.datetimeContainer}>
             <View style={styles.datetimeRow}>
@@ -972,12 +984,12 @@ export default function SearchScreen() {
           <View style={styles.noDateTimeContainer}>
             <Ionicons name="warning-outline" size={14} color="#FB8C00" />
             <Text style={styles.noDateTimeText}>
-              Date et heure à définir avec le coach
+              Date and time to be scheduled with coach
             </Text>
           </View>
         )}
 
-        {/* MODE ET BOUTON */}
+        {/* MODE AND BUTTON */}
         <View style={styles.footerRow}>
           <View style={styles.tag}>
             <Text style={styles.tagText}>
@@ -987,7 +999,7 @@ export default function SearchScreen() {
           
           <View style={styles.bookButton}>
             <Text style={styles.bookButtonText}>
-              Réserver
+              Book
             </Text>
             <Ionicons name="arrow-forward" size={14} color="#000" />
           </View>
@@ -1002,7 +1014,7 @@ export default function SearchScreen() {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" />
-        <Text style={styles.loadingText}>Chargement des services...</Text>
+        <Text style={styles.loadingText}>Loading services...</Text>
       </View>
     );
   }
@@ -1010,140 +1022,143 @@ export default function SearchScreen() {
   /* ---------- UI ---------- */
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.container}>
-        {/* HEADER AVEC RECHERCHE ET FILTRES */}
-        <View style={styles.searchHeader}>
-          <Text style={styles.title}>Rechercher un service</Text>
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      <View style={styles.statusBarBackground} />
+      
+      {/* SEARCH HEADER AT VERY TOP */}
+      <View style={styles.searchHeader}>
+        <Text style={styles.title}>Search Services</Text>
+        
+        <View style={styles.searchContainer}>
+          <View style={styles.searchInputContainer}>
+            <Ionicons name="search-outline" size={20} color="#888" style={styles.searchIcon} />
+            <TextInput
+              placeholder="Sport, discipline or coach..."
+              placeholderTextColor="#888"
+              value={query}
+              onChangeText={setQuery}
+              style={styles.input}
+            />
+            {query ? (
+              <Pressable onPress={() => setQuery("")} style={styles.clearSearchButton}>
+                <Ionicons name="close-circle" size={18} color="#888" />
+              </Pressable>
+            ) : null}
+          </View>
           
-          <View style={styles.searchContainer}>
-            <View style={styles.searchInputContainer}>
-              <Ionicons name="search-outline" size={20} color="#888" style={styles.searchIcon} />
-              <TextInput
-                placeholder="Sport, discipline ou coach..."
-                placeholderTextColor="#888"
-                value={query}
-                onChangeText={setQuery}
-                style={styles.input}
-              />
-              {query ? (
-                <Pressable onPress={() => setQuery("")} style={styles.clearSearchButton}>
-                  <Ionicons name="close-circle" size={18} color="#888" />
-                </Pressable>
-              ) : null}
-            </View>
-            
-            <Pressable 
-              style={[styles.filterButton, hasActiveFilters() && styles.filterButtonActive]}
-              onPress={() => setShowFilters(true)}
-            >
-              <Ionicons 
-                name="filter" 
-                size={20} 
-                color={hasActiveFilters() ? "#FFF" : "#000"} 
-              />
-              {hasActiveFilters() && (
-                <View style={styles.filterBadge}>
-                  <Text style={styles.filterBadgeText}>!</Text>
+          <Pressable 
+            style={[styles.filterButton, hasActiveFilters() && styles.filterButtonActive]}
+            onPress={() => setShowFilters(true)}
+          >
+            <Ionicons 
+              name="filter" 
+              size={20} 
+              color={hasActiveFilters() ? "#FFF" : "#000"} 
+            />
+            {hasActiveFilters() && (
+              <View style={styles.filterBadge}>
+                <Text style={styles.filterBadgeText}>!</Text>
+              </View>
+            )}
+          </Pressable>
+        </View>
+        
+        {/* ACTIVE FILTERS */}
+        {hasActiveFilters() && (
+          <View style={styles.activeFiltersContainer}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {filters.coachingMode !== 'all' && (
+                <View style={styles.activeFilterTag}>
+                  <Text style={styles.activeFilterTagText}>
+                    {filters.coachingMode === 'remote' ? 'Remote' : 'In-person'}
+                  </Text>
+                  <Pressable onPress={() => setFilters({...filters, coachingMode: 'all'})}>
+                    <Ionicons name="close" size={14} color="#FFF" />
+                  </Pressable>
                 </View>
               )}
-            </Pressable>
-          </View>
-          
-          {/* FILTRES ACTIFS */}
-          {hasActiveFilters() && (
-            <View style={styles.activeFiltersContainer}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {filters.coachingMode !== 'all' && (
-                  <View style={styles.activeFilterTag}>
-                    <Text style={styles.activeFilterTagText}>
-                      {filters.coachingMode === 'remote' ? 'À distance' : 'En présentiel'}
-                    </Text>
-                    <Pressable onPress={() => setFilters({...filters, coachingMode: 'all'})}>
-                      <Ionicons name="close" size={14} color="#FFF" />
-                    </Pressable>
-                  </View>
-                )}
-                
-                {filters.date && (
-                  <View style={styles.activeFilterTag}>
-                    <Text style={styles.activeFilterTagText}>
-                      {formatFilterDate(filters.date)}
-                    </Text>
-                    <Pressable onPress={() => setFilters({...filters, date: null})}>
-                      <Ionicons name="close" size={14} color="#FFF" />
-                    </Pressable>
-                  </View>
-                )}
-                
-                {filters.useTimeFilter && (filters.startHour !== 6 || filters.endHour !== 22) && (
-                  <View style={styles.activeFilterTag}>
-                    <Text style={styles.activeFilterTagText}>
-                      {formatHour(filters.startHour)}-{formatHour(filters.endHour)}
-                    </Text>
-                    <Pressable onPress={clearTimeFilter}>
-                      <Ionicons name="close" size={14} color="#FFF" />
-                    </Pressable>
-                  </View>
-                )}
-                
-                <Pressable onPress={clearFilters} style={styles.clearAllFiltersButton}>
-                  <Text style={styles.clearAllFiltersText}>Tout effacer</Text>
-                </Pressable>
-              </ScrollView>
-            </View>
-          )}
-        </View>
-
-        {/* RÉSULTATS */}
-        <View style={styles.resultsContainer}>
-          <View style={styles.resultsHeader}>
-            <Text style={styles.resultsCount}>
-              {sortedServices.length} service{sortedServices.length !== 1 ? 's' : ''} trouvé{sortedServices.length !== 1 ? 's' : ''}
-            </Text>
-            
-            <Pressable 
-              style={styles.sortButton}
-              onPress={() => setShowSortOptions(true)}
-            >
-              <Text style={styles.sortButtonText}>
-                {getSortLabel(sortBy)}
-              </Text>
-              <Ionicons 
-                name={showSortOptions ? "chevron-up" : "chevron-down"} 
-                size={16} 
-                color="#000" 
-              />
-            </Pressable>
-          </View>
-
-          <FlatList
-            data={sortedServices}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={{ paddingBottom: 40 }}
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Ionicons name="search-outline" size={64} color="#CCCCCC" />
-                <Text style={styles.emptyTitle}>Aucun service trouvé</Text>
-                <Text style={styles.emptyText}>
-                  Aucun service ne correspond à vos critères de recherche
-                </Text>
-                {hasActiveFilters() && (
-                  <Pressable style={styles.resetFiltersButton} onPress={clearFilters}>
-                    <Text style={styles.resetFiltersText}>Réinitialiser les filtres</Text>
+              
+              {filters.date && (
+                <View style={styles.activeFilterTag}>
+                  <Text style={styles.activeFilterTagText}>
+                    {formatFilterDate(filters.date)}
+                  </Text>
+                  <Pressable onPress={() => setFilters({...filters, date: null})}>
+                    <Ionicons name="close" size={14} color="#FFF" />
                   </Pressable>
-                )}
-              </View>
-            }
-            renderItem={renderServiceItem}
-          />
-        </View>
+                </View>
+              )}
+              
+              {filters.useTimeFilter && (filters.startHour !== 6 || filters.endHour !== 22) && (
+                <View style={styles.activeFilterTag}>
+                  <Text style={styles.activeFilterTagText}>
+                    {formatHour(filters.startHour)}-{formatHour(filters.endHour)}
+                  </Text>
+                  <Pressable onPress={clearTimeFilter}>
+                    <Ionicons name="close" size={14} color="#FFF" />
+                  </Pressable>
+                </View>
+              )}
+              
+              <Pressable onPress={clearFilters} style={styles.clearAllFiltersButton}>
+                <Text style={styles.clearAllFiltersText}>Clear all</Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+        )}
       </View>
 
-      {/* MODAL DES FILTRES */}
+      {/* RESULTS SECTION WITH VISIBLE SCROLLBAR */}
+      <View style={styles.resultsContainer}>
+        <View style={styles.resultsHeader}>
+          <Text style={styles.resultsCount}>
+            {sortedServices.length} service{sortedServices.length !== 1 ? 's' : ''} found
+          </Text>
+          
+          <Pressable 
+            style={styles.sortButton}
+            onPress={() => setShowSortOptions(true)}
+          >
+            <Text style={styles.sortButtonText}>
+              {getSortLabel(sortBy)}
+            </Text>
+            <Ionicons 
+              name={showSortOptions ? "chevron-up" : "chevron-down"} 
+              size={16} 
+              color="#000" 
+            />
+          </Pressable>
+        </View>
+
+        <FlatList
+          data={sortedServices}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.resultsListContent}
+          style={styles.resultsList}
+          showsVerticalScrollIndicator={true}
+          indicatorStyle="black" // iOS
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Ionicons name="search-outline" size={64} color="#CCCCCC" />
+              <Text style={styles.emptyTitle}>No services found</Text>
+              <Text style={styles.emptyText}>
+                No services match your search criteria
+              </Text>
+              {hasActiveFilters() && (
+                <Pressable style={styles.resetFiltersButton} onPress={clearFilters}>
+                  <Text style={styles.resetFiltersText}>Reset filters</Text>
+                </Pressable>
+              )}
+            </View>
+          }
+          renderItem={renderServiceItem}
+        />
+      </View>
+
+      {/* FILTERS MODAL */}
       {renderFiltersModal()}
       
-      {/* MODAL DES OPTIONS DE TRI */}
+      {/* SORT OPTIONS MODAL */}
       {renderSortOptions()}
     </SafeAreaView>
   );
@@ -1152,16 +1167,24 @@ export default function SearchScreen() {
 /* ---------- STYLES ---------- */
 
 const styles = StyleSheet.create({
-  safe: {
+  screen: {
     flex: 1,
     backgroundColor: "#F5F5F5",
   },
-  container: {
-    flex: 1,
+  statusBarBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0,
+    backgroundColor: '#666',
+    zIndex: 1000,
   },
+  // UPDATED: Search header now at very top
   searchHeader: {
     paddingHorizontal: 20,
-    paddingTop: 6,
+    paddingTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0,
+    paddingBottom: 12,
     backgroundColor: "#FFF",
     borderBottomWidth: 1,
     borderBottomColor: "#EEE",
@@ -1260,15 +1283,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "500",
   },
+  // UPDATED: Results container with visible scrollbar space
   resultsContainer: {
     flex: 1,
-    paddingHorizontal: 20,
   },
   resultsHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    paddingHorizontal: 20,
     paddingVertical: 16,
+    backgroundColor: "#F5F5F5",
   },
   resultsCount: {
     fontSize: 14,
@@ -1289,11 +1314,21 @@ const styles = StyleSheet.create({
     color: "#000",
     fontWeight: "500",
   },
+  // UPDATED: Results list with scrollbar space
+  resultsList: {
+    flex: 1,
+    paddingHorizontal: 16, // Space for scrollbar
+  },
+  resultsListContent: {
+    paddingHorizontal: 4, // Adjusted for scrollbar
+    paddingBottom: 40,
+  },
   card: {
     backgroundColor: "#FFF",
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
+    marginHorizontal: 4, // Space for scrollbar
     borderWidth: 1,
     borderColor: "#EEE",
     shadowColor: "#000",
@@ -1404,6 +1439,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 60,
     paddingHorizontal: 40,
+    marginTop: 40,
   },
   emptyTitle: {
     fontSize: 18,
@@ -1714,13 +1750,13 @@ const styles = StyleSheet.create({
   timeSliderDisabled: {
     opacity: 0.5,
   },
-  // SUPPRIMÉ : timeSliderLabels et timeSliderLabel
+  // REMOVED: timeSliderLabels and timeSliderLabel
   
   timeSliderTrack: {
-    height: 60, // Augmenté pour la zone de touch
+    height: 60, // Increased for touch area
     justifyContent: "center",
-    marginTop: 8, // Ajouté pour compenser la suppression des labels
-    marginBottom: 8, // Ajouté pour compenser la suppression des labels
+    marginTop: 8, // Added to compensate for removed labels
+    marginBottom: 8, // Added to compensate for removed labels
   },
   timeSliderBackground: {
     height: 4,
@@ -1739,17 +1775,17 @@ const styles = StyleSheet.create({
   },
   timeSliderTouchArea: {
     position: "absolute",
-    width: 40, // Largeur augmentée pour une meilleure détection
-    height: 60, // Hauteur augmentée pour une meilleure détection
-    top: -30, // Position ajustée pour être centré sur la ligne
+    width: 40, // Increased width for better detection
+    height: 60, // Increased height for better detection
+    top: -30, // Adjusted position to be centered on line
     alignItems: "center",
     justifyContent: "center",
   },
   timeSliderTouchAreaStart: {
-    // Styles spécifiques pour le curseur de début si besoin
+    // Specific styles for start handle if needed
   },
   timeSliderTouchAreaEnd: {
-    // Styles spécifiques pour le curseur de fin si besoin
+    // Specific styles for end handle if needed
   },
   timeSliderHandle: {
     width: 24,

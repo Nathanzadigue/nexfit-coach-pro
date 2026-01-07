@@ -9,8 +9,10 @@ import {
 import { useEffect, useState } from "react";
 import {
   Alert,
+  Platform,
   Pressable,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   View,
@@ -27,8 +29,8 @@ type Service = {
   sport: string;
   coachingMode: string;
   price: string;
-  duration?: number; // Durée en minutes
-  dateTime?: Date; // Date et heure du cours
+  duration?: number; // Duration in minutes
+  dateTime?: Date; // Date and time of the session
 };
 
 /* ---------- SCREEN ---------- */
@@ -39,6 +41,16 @@ export default function NewBookingScreen() {
 
   const [service, setService] = useState<Service | null>(null);
   const [loading, setLoading] = useState(true);
+
+  /* ---------- STATUS BAR CONFIG ---------- */
+
+  useEffect(() => {
+    StatusBar.setBarStyle('light-content');
+    
+    return () => {
+      StatusBar.setBarStyle('default');
+    };
+  }, []);
 
   /* ---------- FETCH SERVICE ---------- */
 
@@ -87,8 +99,8 @@ export default function NewBookingScreen() {
     };
     
     return {
-      date: date.toLocaleDateString('fr-FR', optionsDate),
-      time: date.toLocaleTimeString('fr-FR', optionsTime)
+      date: date.toLocaleDateString('en-US', optionsDate),
+      time: date.toLocaleTimeString('en-US', optionsTime)
     };
   };
 
@@ -109,33 +121,33 @@ export default function NewBookingScreen() {
 
   const handleConfirm = async () => {
     if (!user || !service || !serviceId) {
-      Alert.alert("Erreur", "Informations manquantes");
+      Alert.alert("Error", "Missing information");
       return;
     }
 
-    // Vérifier si le service a une date/heure définie
+    // Check if service has a scheduled date/time
     if (!service.dateTime) {
-      Alert.alert("Erreur", "Ce service n'a pas de date et heure programmées");
+      Alert.alert("Error", "This service does not have a scheduled date and time");
       return;
     }
 
     try {
       const dateObj = service.dateTime;
       
-      // 🔹 FORMATAGE CORRECT POUR L'AFFICHAGE
-      const displayDate = dateObj.toLocaleDateString('fr-FR', {
+      // 🔹 CORRECT FORMATTING FOR DISPLAY
+      const displayDate = dateObj.toLocaleDateString('en-US', {
         weekday: 'short',
         year: 'numeric',
         month: 'short',
         day: 'numeric'
       });
       
-      const displayTime = dateObj.toLocaleTimeString('fr-FR', {
+      const displayTime = dateObj.toLocaleTimeString('en-US', {
         hour: '2-digit',
         minute: '2-digit'
       });
       
-      // 🔹 FORMATAGE POUR LE TRI
+      // 🔹 FORMATTING FOR SORTING
       const sortableDate = dateObj.toISOString().split('T')[0]; // "2025-01-24"
       const time24h = dateObj.toTimeString().slice(0, 5); // "14:30"
 
@@ -148,11 +160,11 @@ export default function NewBookingScreen() {
         coachingMode: service.coachingMode,
         price: service.price,
         duration: service.duration || 60,
-        // 🔹 STOCKER LES DEUX VERSIONS
-        date: displayDate,           // Pour l'affichage "ven. 24 janv. 2025"
-        time: displayTime,           // Pour l'affichage "14:30"
-        sortableDate: sortableDate,  // Pour le tri "2025-01-24"
-        sortableTime: time24h,       // Pour le tri "14:30"
+        // 🔹 STORE BOTH VERSIONS
+        date: displayDate,           // For display "Fri, Jan 24, 2025"
+        time: displayTime,           // For display "2:30 PM"
+        sortableDate: sortableDate,  // For sorting "2025-01-24"
+        sortableTime: time24h,       // For sorting "14:30"
         scheduledDateTime: service.dateTime,
         status: "pending",
         createdAt: serverTimestamp(),
@@ -162,8 +174,8 @@ export default function NewBookingScreen() {
       await addDoc(collection(db, "bookings"), bookingData);
 
       Alert.alert(
-        "Réservation confirmée",
-        "Votre réservation a été créée avec succès !",
+        "Booking confirmed",
+        "Your booking has been successfully created!",
         [
           {
             text: "OK",
@@ -172,17 +184,17 @@ export default function NewBookingScreen() {
         ]
       );
     } catch (error) {
-      console.error("Impossible de créer la réservation:", error);
-      Alert.alert("Erreur", "Impossible de créer la réservation. Veuillez réessayer.");
+      console.error("Unable to create booking:", error);
+      Alert.alert("Error", "Unable to create booking. Please try again.");
     }
   };
 
-  /* ---------- STATES ---------- */
+  /* ---------- LOADING & ERROR STATES ---------- */
 
   if (loading) {
     return (
       <View style={styles.center}>
-        <Text>Chargement…</Text>
+        <Text>Loading…</Text>
       </View>
     );
   }
@@ -190,54 +202,55 @@ export default function NewBookingScreen() {
   if (!service) {
     return (
       <View style={styles.center}>
-        <Text>Service non trouvé</Text>
+        <Text>Service not found</Text>
       </View>
     );
   }
 
   const { date: formattedDate, time: formattedTime } = service.dateTime 
     ? formatDateTime(service.dateTime)
-    : { date: "Non programmé", time: "" };
+    : { date: "Not scheduled", time: "" };
 
   /* ---------- UI ---------- */
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      <View style={styles.statusBarBackground} />
       <ScrollView
         style={styles.container}
         contentContainerStyle={{ paddingBottom: 40 }}
       >
-        <Text style={styles.title}>Réserver une séance</Text>
+        <Text style={styles.title}>Book a Session</Text>
 
         {/* SERVICE INFO */}
         <View style={styles.card}>
           <Text style={styles.sport}>{service.sport}</Text>
           
           <View style={styles.detailsRow}>
-            <Text style={styles.meta}>Mode : {service.coachingMode}</Text>
+            <Text style={styles.meta}>Mode: {service.coachingMode}</Text>
             <Text style={styles.price}>{service.price} €</Text>
           </View>
 
           {/* DATE AND TIME INFO (READ-ONLY) */}
           {service.dateTime ? (
             <View style={styles.datetimeSection}>
-              <Text style={styles.sectionTitle}>Séance programmée</Text>
+              <Text style={styles.sectionTitle}>Scheduled Session</Text>
               
               <View style={styles.datetimeRow}>
                 <View style={styles.datetimeItem}>
-                  <Text style={styles.datetimeLabel}>Date :</Text>
+                  <Text style={styles.datetimeLabel}>Date:</Text>
                   <Text style={styles.datetimeValue}>{formattedDate}</Text>
                 </View>
                 
                 <View style={styles.datetimeItem}>
-                  <Text style={styles.datetimeLabel}>Heure :</Text>
+                  <Text style={styles.datetimeLabel}>Time:</Text>
                   <Text style={styles.datetimeValue}>{formattedTime}</Text>
                 </View>
               </View>
               
               <View style={styles.datetimeRow}>
                 <View style={styles.datetimeItem}>
-                  <Text style={styles.datetimeLabel}>Durée :</Text>
+                  <Text style={styles.datetimeLabel}>Duration:</Text>
                   <Text style={styles.datetimeValue}>
                     {getDurationText(service.duration || 60)}
                   </Text>
@@ -247,17 +260,17 @@ export default function NewBookingScreen() {
           ) : (
             <View style={styles.warningBox}>
               <Text style={styles.warningText}>
-                ⚠️ Ce service n'a pas de date et heure programmées.
+                ⚠️ This service does not have a scheduled date and time.
               </Text>
               <Text style={styles.warningSubtext}>
-                Veuillez contacter le coach pour programmer.
+                Please contact the coach to schedule.
               </Text>
             </View>
           )}
 
           <View style={styles.noteBox}>
             <Text style={styles.noteText}>
-              ℹ️ La date et l'heure sont fixées par le coach. Vous ne pouvez pas les modifier.
+              ℹ️ Date and time are set by the coach. You cannot modify them.
             </Text>
           </View>
         </View>
@@ -272,7 +285,7 @@ export default function NewBookingScreen() {
           disabled={!service.dateTime}
         >
           <Text style={styles.primaryText}>
-            {service.dateTime ? "Confirmer la réservation" : "Impossible - Pas de programme"}
+            {service.dateTime ? "Confirm Booking" : "Not Available - No Schedule"}
           </Text>
         </Pressable>
 
@@ -281,7 +294,7 @@ export default function NewBookingScreen() {
           style={styles.secondaryButton} 
           onPress={() => router.back()}
         >
-          <Text style={styles.secondaryText}>Annuler</Text>
+          <Text style={styles.secondaryText}>Cancel</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -291,12 +304,23 @@ export default function NewBookingScreen() {
 /* ---------- STYLES ---------- */
 
 const styles = StyleSheet.create({
-  safe: {
+  screen: {
     flex: 1,
     backgroundColor: "#F5F5F5",
   },
+  statusBarBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0,
+    backgroundColor: '#666',
+    zIndex: 1000,
+  },
   container: {
+    flex: 1,
     padding: 20,
+    marginTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0,
   },
   title: {
     fontSize: 24,

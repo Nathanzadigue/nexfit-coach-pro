@@ -8,8 +8,11 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   View,
@@ -44,7 +47,7 @@ type DayGroup = {
   month: string;
   year: string;
   bookings: Booking[];
-  isOpen: boolean; // Pour l'accordéon
+  isOpen: boolean; // For accordion
 };
 
 /* ---------- SCREEN ---------- */
@@ -55,7 +58,17 @@ export default function PlanningScreen() {
   const [dayGroups, setDayGroups] = useState<DayGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showCancelled, setShowCancelled] = useState(false); // Filtre pour les cours annulés
+  const [showCancelled, setShowCancelled] = useState(false); // Filter for cancelled sessions
+
+  /* ---------- STATUS BAR CONFIG ---------- */
+
+  useEffect(() => {
+    StatusBar.setBarStyle('light-content');
+    
+    return () => {
+      StatusBar.setBarStyle('default');
+    };
+  }, []);
 
   /* ---------- FETCH BOOKINGS ---------- */
 
@@ -73,12 +86,12 @@ export default function PlanningScreen() {
         if (data.coachId === user.uid) {
           bookingsList.push({
             id: docSnap.id,
-            date: data.date || data.sortableDate || "À définir",
-            time: data.time || data.sortableTime || "À définir",
+            date: data.date || data.sortableDate || "To be scheduled",
+            time: data.time || data.sortableTime || "To be scheduled",
             sortableDate: data.sortableDate || data.date,
             sortableTime: data.sortableTime || data.time,
             status: data.status || "pending",
-            sport: data.sport || "Sport non spécifié",
+            sport: data.sport || "Sport not specified",
             coachingMode: data.coachingMode || "no-preference",
             price: data.price || "0",
             duration: data.duration || 60,
@@ -88,7 +101,7 @@ export default function PlanningScreen() {
         }
       });
 
-      // Trier par date (plus récent en premier)
+      // Sort by date (most recent first)
       bookingsList.sort((a, b) => {
         const statusOrder = { pending: 0, confirmed: 1, declined: 2, cancelled: 3 };
         if (statusOrder[a.status] !== statusOrder[b.status]) {
@@ -110,13 +123,13 @@ export default function PlanningScreen() {
 
       setBookings(bookingsList);
       
-      // Grouper par jour avec format calendrier
+      // Group by day with calendar format
       const groups = groupByDay(bookingsList);
       setDayGroups(groups);
       
     } catch (error) {
-      console.error("❌ Erreur lors du chargement du planning:", error);
-      Alert.alert("Erreur", "Impossible de charger votre planning");
+      console.error("❌ Error loading planning:", error);
+      Alert.alert("Error", "Unable to load your planning");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -142,20 +155,20 @@ export default function PlanningScreen() {
     bookingsList.forEach((booking) => {
       let dateStr = booking.sortableDate || booking.date;
       
-      // Si la date est "À définir", mettre dans un groupe spécial
-      if (dateStr === "À définir") {
-        dateStr = "À définir";
+      // If date is "To be scheduled", put in special group
+      if (dateStr === "To be scheduled") {
+        dateStr = "To be scheduled";
       }
       
       if (!groups[dateStr]) {
-        let dayName = "À définir";
+        let dayName = "To be scheduled";
         let dayNumber = "";
         let month = "";
         let year = "";
         
-        if (dateStr !== "À définir") {
+        if (dateStr !== "To be scheduled") {
           try {
-            // Essayer de parser la date
+            // Try to parse date
             let dateObj: Date;
             
             if (dateStr.includes('-')) {
@@ -167,18 +180,18 @@ export default function PlanningScreen() {
               const [yearStr, monthStr, dayStr] = dateStr.split('/');
               dateObj = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
             } else {
-              // Essayer de parser comme Date normale
+              // Try to parse as normal Date
               dateObj = new Date(dateStr);
             }
             
             if (!isNaN(dateObj.getTime())) {
-              dayName = dateObj.toLocaleDateString('fr-FR', { weekday: 'long' });
+              dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
               dayNumber = dateObj.getDate().toString();
-              month = dateObj.toLocaleDateString('fr-FR', { month: 'long' });
+              month = dateObj.toLocaleDateString('en-US', { month: 'long' });
               year = dateObj.getFullYear().toString();
             }
           } catch (error) {
-            console.log("Erreur de parsing de date:", dateStr);
+            console.log("Date parsing error:", dateStr);
           }
         }
         
@@ -189,17 +202,17 @@ export default function PlanningScreen() {
           month: month.charAt(0).toUpperCase() + month.slice(1),
           year,
           bookings: [],
-          isOpen: true // Par défaut ouvert
+          isOpen: true // Open by default
         };
       }
       
       groups[dateStr].bookings.push(booking);
     });
     
-    // Convertir en tableau et trier par date
+    // Convert to array and sort by date
     return Object.values(groups).sort((a, b) => {
-      if (a.date === "À définir") return 1;
-      if (b.date === "À définir") return -1;
+      if (a.date === "To be scheduled") return 1;
+      if (b.date === "To be scheduled") return -1;
       return b.date.localeCompare(a.date);
     });
   };
@@ -226,25 +239,25 @@ export default function PlanningScreen() {
 
   /* ---------- FILTER FUNCTIONS ---------- */
 
-  // Compter les sessions actives (exclure annulés)
+  // Count active sessions (exclude cancelled)
   const countActiveSessions = () => {
     return bookings.filter(b => b.status !== "cancelled").length;
   };
 
-  // Compter les sessions annulées
+  // Count cancelled sessions
   const countCancelledSessions = () => {
     return bookings.filter(b => b.status === "cancelled").length;
   };
 
-  // Filtrer les sessions selon le filtre
+  // Filter sessions according to filter
   const getFilteredBookings = (bookings: Booking[]) => {
     if (showCancelled) {
-      return bookings; // Tout afficher
+      return bookings; // Show all
     }
     return bookings.filter(b => b.status !== "cancelled");
   };
 
-  // Compter les sessions par jour (exclure annulés si filtre actif)
+  // Count sessions per day (exclude cancelled if filter active)
   const countDaySessions = (bookings: Booking[]) => {
     const filtered = getFilteredBookings(bookings);
     return filtered.length;
@@ -257,14 +270,14 @@ export default function PlanningScreen() {
     status: "confirmed" | "declined" | "cancelled"
   ) => {
     Alert.alert(
-      status === "confirmed" ? "Confirmer la réservation" : 
-      status === "declined" ? "Refuser la réservation" : "Annuler la réservation",
-      `Êtes-vous sûr de vouloir ${status === "confirmed" ? "accepter" : status === "declined" ? "refuser" : "annuler"} cette réservation ?`,
+      status === "confirmed" ? "Confirm booking" : 
+      status === "declined" ? "Decline booking" : "Cancel booking",
+      `Are you sure you want to ${status === "confirmed" ? "accept" : status === "declined" ? "decline" : "cancel"} this booking?`,
       [
-        { text: "Annuler", style: "cancel" },
+        { text: "Cancel", style: "cancel" },
         {
-          text: status === "confirmed" ? "Accepter" : 
-                status === "declined" ? "Refuser" : "Annuler",
+          text: status === "confirmed" ? "Accept" : 
+                status === "declined" ? "Decline" : "Cancel",
           style: status === "confirmed" ? "default" : "destructive",
           onPress: async () => {
             try {
@@ -273,20 +286,20 @@ export default function PlanningScreen() {
                 updatedAt: new Date()
               });
 
-              // Rafraîchir les données
+              // Refresh data
               fetchBookings();
               
               Alert.alert(
-                "Succès",
+                "Success",
                 status === "confirmed" 
-                  ? "✅ Réservation confirmée avec succès !" 
+                  ? "✅ Booking confirmed successfully!" 
                   : status === "declined"
-                  ? "❌ Réservation refusée."
-                  : "📝 Réservation annulée."
+                  ? "❌ Booking declined."
+                  : "📝 Booking cancelled."
               );
             } catch (error) {
-              console.error("Erreur lors de la mise à jour:", error);
-              Alert.alert("Erreur", "Impossible de mettre à jour la réservation");
+              console.error("Error updating:", error);
+              Alert.alert("Error", "Unable to update booking");
             }
           },
         },
@@ -297,12 +310,12 @@ export default function PlanningScreen() {
   /* ---------- HELPER FUNCTIONS ---------- */
 
   const formatTimeForDisplay = (timeStr: string) => {
-    if (timeStr === "À définir") return "À définir";
+    if (timeStr === "To be scheduled") return "To be scheduled";
     
     try {
       if (timeStr.includes(':') && timeStr.split(':').length >= 2) {
         const [hours, minutes] = timeStr.split(':');
-        return `${hours}h${minutes}`;
+        return `${hours}:${minutes}`;
       }
       
       return timeStr;
@@ -337,10 +350,10 @@ export default function PlanningScreen() {
 
   const getStatusText = (status: string) => {
     const texts = {
-      pending: "En attente",
-      confirmed: "Confirmé",
-      declined: "Refusé",
-      cancelled: "Annulé"
+      pending: "Pending",
+      confirmed: "Confirmed",
+      declined: "Declined",
+      cancelled: "Cancelled"
     };
     return texts[status as keyof typeof texts] || status;
   };
@@ -361,19 +374,19 @@ export default function PlanningScreen() {
     const filteredBookings = getFilteredBookings(group.bookings);
     const sessionCount = countDaySessions(group.bookings);
     
-    // Si aucun cours à afficher (après filtrage) et que les annulés sont masqués
+    // If no sessions to display (after filtering) and cancelled are hidden
     if (sessionCount === 0 && !showCancelled) {
       return null;
     }
 
     return (
       <View key={group.date} style={styles.dayGroup}>
-        {/* EN-TÊTE DU JOUR (CLIQUABLE) */}
+        {/* DAY HEADER (CLICKABLE) */}
         <Pressable 
           style={styles.dayHeader}
           onPress={() => toggleDay(group.date)}
         >
-          {group.date === "À définir" ? (
+          {group.date === "To be scheduled" ? (
             <View style={styles.dateBoxUndefined}>
               <Text style={styles.dayNameUndefined}>{group.dayName}</Text>
             </View>
@@ -402,7 +415,7 @@ export default function PlanningScreen() {
           </View>
         </Pressable>
 
-        {/* SESSIONS DU JOUR (ACCORDÉON) */}
+        {/* DAY SESSIONS (ACCORDION) */}
         {group.isOpen && filteredBookings.length > 0 && (
           <View style={styles.sessionsContainer}>
             {filteredBookings.map((booking) => (
@@ -410,7 +423,7 @@ export default function PlanningScreen() {
                 styles.sessionCard,
                 booking.status === "cancelled" && styles.cancelledSession
               ]}>
-                {/* HEURE ET STATUT */}
+                {/* TIME AND STATUS */}
                 <View style={styles.sessionHeader}>
                   <View style={styles.timeBadge}>
                     <Ionicons name="time-outline" size={14} color="#666" />
@@ -437,7 +450,7 @@ export default function PlanningScreen() {
                   </View>
                 </View>
 
-                {/* SPORT ET CLIENT */}
+                {/* SPORT AND CLIENT */}
                 <View style={styles.sessionBody}>
                   <Text style={styles.sportText}>{booking.sport}</Text>
                   
@@ -449,7 +462,7 @@ export default function PlanningScreen() {
                   </View>
                 </View>
 
-                {/* DÉTAILS */}
+                {/* DETAILS */}
                 <View style={styles.sessionDetails}>
                   <View style={styles.detailRow}>
                     <View style={styles.detailItem}>
@@ -470,14 +483,14 @@ export default function PlanningScreen() {
                         color="#666" 
                       />
                       <Text style={styles.detailText}>
-                        {booking.coachingMode === "remote" ? "Distance" :
-                         booking.coachingMode === "in-person" ? "Présentiel" : "Mixte"}
+                        {booking.coachingMode === "remote" ? "Remote" :
+                         booking.coachingMode === "in-person" ? "In-person" : "Flexible"}
                       </Text>
                     </View>
                   </View>
                 </View>
 
-                {/* ACTIONS (uniquement pour pending et confirmed) */}
+                {/* ACTIONS (only for pending and confirmed) */}
                 {booking.status === "pending" && (
                   <View style={styles.sessionActions}>
                     <Pressable
@@ -485,7 +498,7 @@ export default function PlanningScreen() {
                       onPress={() => updateStatus(booking.id, "declined")}
                     >
                       <Ionicons name="close-circle" size={16} color="#FF3B30" />
-                      <Text style={styles.declineButtonText}>Refuser</Text>
+                      <Text style={styles.declineButtonText}>Decline</Text>
                     </Pressable>
 
                     <Pressable
@@ -493,7 +506,7 @@ export default function PlanningScreen() {
                       onPress={() => updateStatus(booking.id, "confirmed")}
                     >
                       <Ionicons name="checkmark-circle" size={16} color="#FFF" />
-                      <Text style={styles.acceptButtonText}>Accepter</Text>
+                      <Text style={styles.acceptButtonText}>Accept</Text>
                     </Pressable>
                   </View>
                 )}
@@ -505,7 +518,7 @@ export default function PlanningScreen() {
                       onPress={() => updateStatus(booking.id, "cancelled")}
                     >
                       <Ionicons name="close-circle" size={16} color="#FF3B30" />
-                      <Text style={styles.cancelButtonText}>Annuler</Text>
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
                     </Pressable>
                   </View>
                 )}
@@ -514,7 +527,7 @@ export default function PlanningScreen() {
                   <View style={styles.cancelledNotice}>
                     <Ionicons name="information-circle-outline" size={14} color="#757575" />
                     <Text style={styles.cancelledNoticeText}>
-                      Cette séance a été annulée
+                      This session has been cancelled
                     </Text>
                   </View>
                 )}
@@ -523,12 +536,12 @@ export default function PlanningScreen() {
           </View>
         )}
 
-        {/* MESSAGE SI AUCUNE SESSION (après filtrage) */}
+        {/* MESSAGE IF NO SESSIONS (after filtering) */}
         {group.isOpen && filteredBookings.length === 0 && (
           <View style={styles.noSessionsMessage}>
             <Ionicons name="calendar-outline" size={24} color="#CCCCCC" />
             <Text style={styles.noSessionsText}>
-              Aucune séance active pour ce jour
+              No active sessions for this day
             </Text>
           </View>
         )}
@@ -541,9 +554,9 @@ export default function PlanningScreen() {
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
       <Ionicons name="calendar-outline" size={80} color="#CCCCCC" />
-      <Text style={styles.emptyTitle}>Planning vide</Text>
+      <Text style={styles.emptyTitle}>Empty planning</Text>
       <Text style={styles.emptyText}>
-        Vos réservations apparaîtront ici une fois que des clients auront réservé vos services.
+        Your bookings will appear here once clients book your services.
       </Text>
     </View>
   );
@@ -563,7 +576,7 @@ export default function PlanningScreen() {
             color={!showCancelled ? "#FFF" : "#666"} 
           />
           <Text style={[styles.filterButtonText, !showCancelled && styles.filterButtonTextActive]}>
-            Masquer annulés
+            Hide cancelled
           </Text>
         </Pressable>
 
@@ -577,7 +590,7 @@ export default function PlanningScreen() {
             color={showCancelled ? "#FFF" : "#666"} 
           />
           <Text style={[styles.filterButtonText, showCancelled && styles.filterButtonTextActive]}>
-            Voir annulés
+            Show cancelled
           </Text>
         </Pressable>
       </View>
@@ -588,7 +601,7 @@ export default function PlanningScreen() {
           onPress={expandAllDays}
         >
           <Ionicons name="expand-outline" size={16} color="#666" />
-          <Text style={styles.accordionButtonText}>Ouvrir tout</Text>
+          <Text style={styles.accordionButtonText}>Expand all</Text>
         </Pressable>
 
         <Pressable
@@ -596,7 +609,7 @@ export default function PlanningScreen() {
           onPress={collapseAllDays}
         >
           <Ionicons name="contract-outline" size={16} color="#666" />
-          <Text style={styles.accordionButtonText}>Fermer tout</Text>
+          <Text style={styles.accordionButtonText}>Collapse all</Text>
         </Pressable>
       </View>
     </View>
@@ -608,7 +621,7 @@ export default function PlanningScreen() {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#000" />
-        <Text style={{ marginTop: 12, color: "#666" }}>Chargement du planning...</Text>
+        <Text style={{ marginTop: 12, color: "#666" }}>Loading planning...</Text>
       </View>
     );
   }
@@ -619,48 +632,53 @@ export default function PlanningScreen() {
   const cancelledSessions = countCancelledSessions();
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={styles.title}>Mon Planning</Text>
-          <Text style={styles.subtitle}>
-            {activeSessions} séance{activeSessions !== 1 ? 's' : ''} active{activeSessions !== 1 ? 's' : ''}
-            {cancelledSessions > 0 && !showCancelled && ` • ${cancelledSessions} annulée${cancelledSessions > 1 ? 's' : ''}`}
-          </Text>
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      <View style={styles.statusBarBackground} />
+      <View style={styles.container}>
+        {/* HEADER */}
+        <View style={styles.header}>
+          <View style={styles.headerContent}>
+            <Text style={styles.title}>My Planning</Text>
+            <Text style={styles.subtitle}>
+              {activeSessions} active session{activeSessions !== 1 ? 's' : ''}
+              {cancelledSessions > 0 && !showCancelled && ` • ${cancelledSessions} cancelled`}
+            </Text>
+          </View>
+          
+          <Pressable onPress={onRefresh} style={styles.refreshButton}>
+            <Ionicons name="refresh-outline" size={22} color="#000" />
+          </Pressable>
         </View>
-        
-        <Pressable onPress={onRefresh} style={styles.refreshButton}>
-          <Ionicons name="refresh-outline" size={22} color="#000" />
-        </Pressable>
+
+        {bookings.length > 0 && renderFilters()}
+
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={true}
+          indicatorStyle="black"
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        >
+          {dayGroups.filter(group => {
+            const sessionCount = countDaySessions(group.bookings);
+            return sessionCount > 0 || showCancelled;
+          }).length === 0 ? (
+            renderEmpty()
+          ) : (
+            <>
+              {dayGroups
+                .filter(group => {
+                  const sessionCount = countDaySessions(group.bookings);
+                  return sessionCount > 0 || showCancelled;
+                })
+                .map(renderDayGroup)}
+              
+              <View style={styles.bottomSpace} />
+            </>
+          )}
+        </ScrollView>
       </View>
-
-      {bookings.length > 0 && renderFilters()}
-
-      <ScrollView
-        contentContainerStyle={styles.container}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
-        {dayGroups.filter(group => {
-          const sessionCount = countDaySessions(group.bookings);
-          return sessionCount > 0 || showCancelled;
-        }).length === 0 ? (
-          renderEmpty()
-        ) : (
-          <>
-            {dayGroups
-              .filter(group => {
-                const sessionCount = countDaySessions(group.bookings);
-                return sessionCount > 0 || showCancelled;
-              })
-              .map(renderDayGroup)}
-            
-            <View style={styles.bottomSpace} />
-          </>
-        )}
-      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -668,16 +686,31 @@ export default function PlanningScreen() {
 /* ---------- STYLES ---------- */
 
 const styles = StyleSheet.create({
-  safe: { 
-    flex: 1, 
-    backgroundColor: "#F5F5F5" 
+  screen: {
+    flex: 1,
+    backgroundColor: "#F5F5F5",
   },
+  statusBarBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0,
+    backgroundColor: '#666',
+    zIndex: 1000,
+  },
+  container: {
+    flex: 1,
+    marginTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0,
+  },
+  
+  /* HEADER */
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 20,
     paddingBottom: 16,
     backgroundColor: "#FFF",
     borderBottomWidth: 1,
@@ -702,7 +735,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F5F5F5",
   },
   
-  /* FILTRES */
+  /* FILTERS */
   filtersContainer: {
     backgroundColor: "#FFF",
     padding: 16,
@@ -763,13 +796,13 @@ const styles = StyleSheet.create({
     color: "#666",
   },
   
-  /* CONTENU PRINCIPAL */
-  container: { 
+  /* MAIN CONTENT */
+  scrollContent: { 
     padding: 16,
     paddingBottom: 40,
   },
   
-  /* JOUR */
+  /* DAY */
   dayGroup: {
     marginBottom: 20,
     backgroundColor: "#FFF",
@@ -896,7 +929,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   
-  /* CORPS DE LA SESSION */
+  /* SESSION BODY */
   sessionBody: {
     marginBottom: 12,
   },
@@ -917,7 +950,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   
-  /* DÉTAILS */
+  /* DETAILS */
   sessionDetails: {
     marginBottom: 12,
   },
@@ -992,7 +1025,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   
-  /* NOTICE ANNULÉ */
+  /* CANCELLED NOTICE */
   cancelledNotice: {
     flexDirection: "row",
     alignItems: "center",
@@ -1009,7 +1042,7 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
   
-  /* MESSAGE AUCUNE SESSION */
+  /* NO SESSIONS MESSAGE */
   noSessionsMessage: {
     alignItems: "center",
     justifyContent: "center",
@@ -1053,6 +1086,3 @@ const styles = StyleSheet.create({
     height: 40,
   },
 });
-
-// Import manquant
-import { RefreshControl } from "react-native";

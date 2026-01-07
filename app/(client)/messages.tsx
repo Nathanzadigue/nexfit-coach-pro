@@ -1,23 +1,25 @@
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  Pressable,
-  ActivityIndicator,
-} from "react-native";
-import { useEffect, useState } from "react";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  doc,
-  getDoc,
-} from "firebase/firestore";
 import { db } from "@/src/firebase/config";
 import { useAuth } from "@/src/store/AuthContext";
 import { router } from "expo-router";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+} from "firebase/firestore";
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  Platform,
+  Pressable,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 /* ---------- TYPES ---------- */
@@ -36,6 +38,16 @@ export default function MessagesScreen() {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
+
+  /* ---------- STATUS BAR CONFIG ---------- */
+
+  useEffect(() => {
+    StatusBar.setBarStyle('light-content');
+    
+    return () => {
+      StatusBar.setBarStyle('default');
+    };
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -98,7 +110,9 @@ export default function MessagesScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      <View style={styles.statusBarBackground} />
+      
       {/* HEADER */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Messages</Text>
@@ -109,6 +123,9 @@ export default function MessagesScreen() {
         data={conversations}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
+        style={styles.listContainer}
+        showsVerticalScrollIndicator={true}
+        indicatorStyle="black"
         ListEmptyComponent={
           <Text style={styles.empty}>
             No conversations yet
@@ -147,13 +164,24 @@ export default function MessagesScreen() {
 /* ---------- STYLES ---------- */
 
 const styles = StyleSheet.create({
-  safe: {
+  screen: {
     flex: 1,
-    backgroundColor: "#FFF",
+    backgroundColor: "#F5F5F5",
+  },
+  statusBarBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0,
+    backgroundColor: '#666',
+    zIndex: 1000,
   },
   header: {
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0,
+    paddingBottom: 14,
+    backgroundColor: "#FFF",
     borderBottomWidth: 1,
     borderBottomColor: "#EEE",
   },
@@ -162,15 +190,23 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#000",
   },
-  list: {
+  listContainer: {
+    flex: 1,
     paddingHorizontal: 16,
+  },
+  list: {
     paddingTop: 6,
     paddingBottom: 20,
   },
   card: {
     paddingVertical: 14,
+    paddingHorizontal: 4,
     borderBottomWidth: 1,
     borderBottomColor: "#EEE",
+    backgroundColor: "#FFF",
+    marginBottom: 8,
+    borderRadius: 8,
+    padding: 12,
   },
   row: {
     flexDirection: "row",
@@ -203,5 +239,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#F5F5F5",
   },
 });

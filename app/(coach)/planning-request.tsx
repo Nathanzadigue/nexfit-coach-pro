@@ -2,21 +2,27 @@ import { db } from "@/src/firebase/config";
 import { useAuth } from "@/src/store/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import {
+  addDoc,
   collection,
   doc,
+  getDoc,
   getDocs,
+  serverTimestamp,
   updateDoc,
 } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import {
   Alert,
   FlatList,
+  Platform,
   Pressable,
-  SafeAreaView,
+  RefreshControl,
+  StatusBar,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 /* ---------- TYPES ---------- */
 
@@ -33,9 +39,11 @@ type Booking = {
   sortableDate?: string;
   sortableTime?: string;
   duration?: number;
-  status: "pending" | "confirmed" | "declined" | "cancelled";
+  status: "pending" | "confirmed" | "declined" | "cancelled" | "paid";
   clientEmail?: string;
   clientName?: string;
+  clientFirstName?: string;
+  clientLastName?: string;
 };
 
 /* ---------- SCREEN ---------- */
@@ -46,20 +54,36 @@ export default function PlanningScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  /* ---------- STATUS BAR CONFIG ---------- */
+
+  useEffect(() => {
+    StatusBar.setBarStyle('light-content');
+    if (Platform.OS === 'android') {
+      StatusBar.setBackgroundColor('#666');
+    }
+    
+    return () => {
+      StatusBar.setBarStyle('default');
+      if (Platform.OS === 'android') {
+        StatusBar.setBackgroundColor('transparent');
+      }
+    };
+  }, []);
+
   /* ---------- FETCH PENDING BOOKINGS ---------- */
 
   const fetchBookings = async () => {
     if (!user) return;
 
     try {
-      // Récupérer TOUTES les réservations
+      // Fetch ALL bookings
       const querySnapshot = await getDocs(collection(db, "bookings"));
       const bookingsList: Booking[] = [];
 
       querySnapshot.forEach((docSnap) => {
         const data = docSnap.data();
         
-        // Filtrer : uniquement celles pour ce coach ET avec statut "pending"
+        // Filter: only those for this coach AND with "pending" status
         if (data.coachId === user.uid && data.status === "pending") {
           bookingsList.push({
             id: docSnap.id,
@@ -69,29 +93,32 @@ export default function PlanningScreen() {
             sport: data.sport || "Sport",
             coachingMode: data.coachingMode || "no-preference",
             price: data.price || "0",
-            date: data.date || data.sortableDate || "Date à définir",
-            time: data.time || data.sortableTime || "Heure à définir",
+            date: data.date || data.sortableDate || "Date to be determined",
+            time: data.time || data.sortableTime || "Time to be determined",
             sortableDate: data.sortableDate,
             sortableTime: data.sortableTime,
             duration: data.duration || 60,
             status: data.status || "pending",
             clientEmail: data.clientEmail,
             clientName: data.clientName,
+            clientFirstName: data.clientFirstName,
+            clientLastName: data.clientLastName,
           });
         }
       });
 
-      // Trier par date (plus récent en premier)
+      // Sort by date (most recent first)
       bookingsList.sort((a, b) => {
         const dateA = a.sortableDate || a.date;
         const dateB = b.sortableDate || b.date;
         return dateB.localeCompare(dateA);
       });
 
-      console.log(`✅ ${bookingsList.length} réservations en attente`);
+      console.log(`✅ ${bookingsList.length} pending reservations`);
       setBookings(bookingsList);
     } catch (error) {
-      console.error("❌ Erreur lors du chargement:", error);
+      console.error("❌ Error loading bookings:", error);
+      Alert.alert("Error", "Unable to load bookings");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -111,40 +138,85 @@ export default function PlanningScreen() {
 
   const updateStatus = async (id: string, status: "confirmed" | "declined") => {
     try {
-      await updateDoc(doc(db, "bookings", id), { 
+      const bookingRef = doc(db, "bookings", id);
+      const bookingSnap = await getDoc(bookingRef);
+      
+      if (!bookingSnap.exists()) {
+        Alert.alert("Error", "Booking not found");
+        return;
+      }
+      
+      const bookingData = bookingSnap.data();
+      const clientId = bookingData.clientId;
+      
+      // Update booking status
+      await updateDoc(bookingRef, { 
         status,
-        updatedAt: new Date()
+        updatedAt: serverTimestamp(),
+        coachRespondedAt: serverTimestamp(),
       });
       
-      // Retirer de la liste localement
+      // 🔔 Create notification for client
+      if (status === "confirmed") {
+        await addDoc(collection(db, "notifications"), {
+          userId: clientId,
+          type: "booking_confirmed",
+          title: "🎯 Booking confirmed!",
+          message: `Your ${bookingData.sport} booking has been confirmed by the coach. You can now proceed with payment.`,
+          bookingId: id,
+          read: false,
+          createdAt: serverTimestamp(),
+          data: {
+            bookingId: id,
+            sport: bookingData.sport,
+            price: bookingData.price,
+            coachId: bookingData.coachId,
+            serviceId: bookingData.serviceId,
+            date: bookingData.date,
+            time: bookingData.time,
+          }
+        });
+      } else if (status === "declined") {
+        await addDoc(collection(db, "notifications"), {
+          userId: clientId,
+          type: "booking_declined",
+          title: "❌ Booking declined",
+          message: `Your ${bookingData.sport} booking has been declined by the coach.`,
+          bookingId: id,
+          read: false,
+          createdAt: serverTimestamp(),
+        });
+      }
+      
+      // Remove from local list
       setBookings((prev) => prev.filter((x) => x.id !== id));
       
       Alert.alert(
-        "Succès",
+        "Success",
         status === "confirmed" 
-          ? "✅ Réservation confirmée avec succès !" 
-          : "❌ Réservation refusée."
+          ? "✅ Booking successfully confirmed! The client has been notified." 
+          : "❌ Booking declined. The client has been notified."
       );
       
-      // Rafraîchir après un court délai
+      // Refresh after a short delay
       setTimeout(() => {
         fetchBookings();
       }, 500);
       
     } catch (error) {
-      console.error("Erreur lors de la mise à jour:", error);
-      Alert.alert("Erreur", "Impossible de mettre à jour la réservation");
+      console.error("Error updating booking:", error);
+      Alert.alert("Error", "Unable to update booking");
     }
   };
 
   const handleAccept = (id: string) => {
     Alert.alert(
-      "Confirmer la réservation",
-      "Êtes-vous sûr de vouloir accepter cette réservation ?",
+      "Confirm booking",
+      "Are you sure you want to accept this booking?",
       [
-        { text: "Annuler", style: "cancel" },
+        { text: "Cancel", style: "cancel" },
         {
-          text: "Accepter",
+          text: "Accept",
           style: "default",
           onPress: () => updateStatus(id, "confirmed"),
         },
@@ -154,12 +226,12 @@ export default function PlanningScreen() {
 
   const handleDecline = (id: string) => {
     Alert.alert(
-      "Refuser la réservation",
-      "Êtes-vous sûr de vouloir refuser cette réservation ?",
+      "Decline booking",
+      "Are you sure you want to decline this booking?",
       [
-        { text: "Annuler", style: "cancel" },
+        { text: "Cancel", style: "cancel" },
         {
-          text: "Refuser",
+          text: "Decline",
           style: "destructive",
           onPress: () => updateStatus(id, "declined"),
         },
@@ -170,10 +242,9 @@ export default function PlanningScreen() {
   /* ---------- HELPER FUNCTIONS ---------- */
 
   const formatDate = (dateStr: string) => {
-    if (dateStr === "Date à définir") return "À définir";
+    if (dateStr === "Date to be determined") return "To be determined";
     
     try {
-      // Si la date est déjà en français
       const frenchMonths = ['janv', 'févr', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc'];
       const isFrenchDate = frenchMonths.some(month => dateStr.toLowerCase().includes(month));
       
@@ -181,11 +252,10 @@ export default function PlanningScreen() {
         return dateStr;
       }
       
-      // Si c'est au format YYYY-MM-DD
       if (dateStr.includes('-') && dateStr.split('-').length === 3) {
         const [year, month, day] = dateStr.split('-');
         const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-        return date.toLocaleDateString('fr-FR', {
+        return date.toLocaleDateString('en-US', {
           weekday: 'short',
           year: 'numeric',
           month: 'short',
@@ -200,10 +270,9 @@ export default function PlanningScreen() {
   };
 
   const formatTime = (timeStr: string) => {
-    if (timeStr === "Heure à définir") return "À définir";
+    if (timeStr === "Time to be determined") return "To be determined";
     
     try {
-      // Si c'est au format HH:MM
       if (timeStr.includes(':') && timeStr.split(':').length >= 2) {
         const [hours, minutes] = timeStr.split(':');
         return `${hours}h${minutes}`;
@@ -229,6 +298,19 @@ export default function PlanningScreen() {
     }
   };
 
+  const getClientName = (item: Booking) => {
+    if (item.clientFirstName && item.clientLastName) {
+      return `${item.clientFirstName} ${item.clientLastName}`;
+    }
+    if (item.clientName) {
+      return item.clientName;
+    }
+    if (item.clientEmail) {
+      return item.clientEmail.split('@')[0];
+    }
+    return "Client";
+  };
+
   /* ---------- RENDER ITEM ---------- */
 
   const renderBookingItem = ({ item }: { item: Booking }) => (
@@ -236,14 +318,14 @@ export default function PlanningScreen() {
       <View style={styles.cardHeader}>
         <Text style={styles.sport}>{item.sport}</Text>
         <View style={styles.statusBadge}>
-          <Text style={styles.statusText}>En attente</Text>
+          <Text style={styles.statusText}>Pending</Text>
         </View>
       </View>
 
       <View style={styles.clientInfo}>
         <Ionicons name="person-outline" size={16} color="#666" />
         <Text style={styles.clientText}>
-          {item.clientName || item.clientEmail || `Client`}
+          {getClientName(item)}
         </Text>
       </View>
 
@@ -274,9 +356,9 @@ export default function PlanningScreen() {
 
         <View style={styles.modeRow}>
           <Text style={styles.modeText}>
-            Mode : {item.coachingMode === "remote" && "📍 À distance"}
-                  {item.coachingMode === "in-person" && "👤 En présentiel"}
-                  {item.coachingMode === "no-preference" && "🤷 Sans préférence"}
+            Mode: {item.coachingMode === "remote" && "📍 Remote"}
+                  {item.coachingMode === "in-person" && "👤 In person"}
+                  {item.coachingMode === "no-preference" && "🤷 No preference"}
           </Text>
         </View>
       </View>
@@ -287,7 +369,7 @@ export default function PlanningScreen() {
           onPress={() => handleDecline(item.id)}
         >
           <Ionicons name="close-circle" size={18} color="#FF3B30" />
-          <Text style={styles.declineButtonText}>Refuser</Text>
+          <Text style={styles.declineButtonText}>Decline</Text>
         </Pressable>
 
         <Pressable
@@ -295,7 +377,7 @@ export default function PlanningScreen() {
           onPress={() => handleAccept(item.id)}
         >
           <Ionicons name="checkmark-circle" size={18} color="#FFF" />
-          <Text style={styles.acceptButtonText}>Accepter</Text>
+          <Text style={styles.acceptButtonText}>Accept</Text>
         </Pressable>
       </View>
     </View>
@@ -306,9 +388,9 @@ export default function PlanningScreen() {
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
       <Ionicons name="notifications-off-outline" size={64} color="#CCCCCC" />
-      <Text style={styles.emptyTitle}>Aucune réservation en attente</Text>
+      <Text style={styles.emptyTitle}>No pending bookings</Text>
       <Text style={styles.emptyText}>
-        Les réservations de vos clients apparaîtront ici pour confirmation.
+        Your clients' bookings will appear here for confirmation.
       </Text>
     </View>
   );
@@ -318,7 +400,7 @@ export default function PlanningScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <Text>Chargement...</Text>
+        <Text>Loading...</Text>
       </View>
     );
   }
@@ -326,11 +408,12 @@ export default function PlanningScreen() {
   /* ---------- MAIN RENDER ---------- */
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <View style={styles.statusBarBackground} />
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Demandes de réservation</Text>
+        <Text style={styles.headerTitle}>Booking Requests</Text>
         <Text style={styles.headerSubtitle}>
-          {bookings.length} demande{bookings.length !== 1 ? 's' : ''} en attente
+          {bookings.length} pending request{bookings.length !== 1 ? 's' : ''}
         </Text>
       </View>
 
@@ -341,8 +424,9 @@ export default function PlanningScreen() {
         ListEmptyComponent={renderEmpty}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        refreshing={refreshing}
-        onRefresh={onRefresh}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       />
     </SafeAreaView>
   );
@@ -354,6 +438,15 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: "#F5F5F5",
+  },
+  statusBarBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0,
+    backgroundColor: '#666',
+    zIndex: 1000,
   },
   header: {
     padding: 20,

@@ -12,12 +12,14 @@ import {
   setDoc,
   where
 } from "firebase/firestore";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   FlatList,
+  Platform,
   Pressable,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -59,6 +61,18 @@ export default function CoachServicesScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  /* ---------- STATUS BAR CONFIG ---------- */
+
+  useEffect(() => {
+    StatusBar.setBarStyle('light-content');
+    
+    return () => {
+      StatusBar.setBarStyle('default');
+    };
+  }, []);
 
   /* ---------- LOAD EXISTING SERVICES ---------- */
 
@@ -110,7 +124,7 @@ export default function CoachServicesScreen() {
   const onChangeDate = (event: any, selectedDate?: Date) => {
     setShowDatePicker(false);
     if (selectedDate) {
-      // Garder l'heure actuelle, changer seulement la date
+      // Keep current time, only change date
       const newDate = new Date(date);
       newDate.setFullYear(selectedDate.getFullYear());
       newDate.setMonth(selectedDate.getMonth());
@@ -122,7 +136,7 @@ export default function CoachServicesScreen() {
   const onChangeTime = (event: any, selectedTime?: Date) => {
     setShowTimePicker(false);
     if (selectedTime) {
-      // Garder la date actuelle, changer seulement l'heure
+      // Keep current date, only change time
       const newDate = new Date(date);
       newDate.setHours(selectedTime.getHours());
       newDate.setMinutes(selectedTime.getMinutes());
@@ -143,8 +157,8 @@ export default function CoachServicesScreen() {
     };
     
     return {
-      date: date.toLocaleDateString('fr-FR', optionsDate),
-      time: date.toLocaleTimeString('fr-FR', optionsTime)
+      date: date.toLocaleDateString('en-US', optionsDate),
+      time: date.toLocaleTimeString('en-US', optionsTime)
     };
   };
 
@@ -264,6 +278,11 @@ export default function CoachServicesScreen() {
     }
     setEditingService(service);
     setIsEditing(true);
+    
+    // Scroll to top to show the form
+    if (scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({ y: 0, animated: true });
+    }
   };
 
   const resetForm = () => {
@@ -281,7 +300,7 @@ export default function CoachServicesScreen() {
   const renderServiceItem = ({ item }: { item: CoachService }) => {
     const { date: formattedDate, time: formattedTime } = item.dateTime 
       ? formatDateTime(new Date(item.dateTime))
-      : { date: "Date non définie", time: "" };
+      : { date: "Date not set", time: "" };
     
     return (
       <View style={styles.serviceCard}>
@@ -339,11 +358,18 @@ export default function CoachServicesScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView style={styles.container}>
-        <Text style={styles.title}>
-          {isEditing ? "Edit Service" : "My Services"}
-        </Text>
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      <View style={styles.statusBarBackground} />
+      <ScrollView 
+        ref={scrollViewRef}
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <View style={styles.header}>
+          <Text style={styles.title}>
+            {isEditing ? "Edit Service" : "My Services"}
+          </Text>
+        </View>
 
         {/* FORM */}
         <View style={styles.form}>
@@ -485,18 +511,33 @@ export default function CoachServicesScreen() {
 /* ---------- STYLES ---------- */
 
 const styles = StyleSheet.create({
-  safe: {
+  screen: {
     flex: 1,
     backgroundColor: "#F5F5F5",
   },
+  statusBarBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0,
+    backgroundColor: '#666',
+    zIndex: 1000,
+  },
   container: {
     flex: 1,
+    marginTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0,
+  },
+  scrollContent: {
     padding: 20,
+    paddingBottom: 40,
+  },
+  header: {
+    marginBottom: 20,
   },
   title: {
     fontSize: 24,
     fontWeight: "700",
-    marginBottom: 20,
     color: "#000",
   },
   sectionTitle: {
@@ -511,11 +552,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#EEE",
   },
   label: {
     fontSize: 14,
@@ -601,11 +639,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: "#EEE",
   },
   serviceInfo: {
     flex: 1,
@@ -668,6 +703,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF",
     borderRadius: 16,
     marginBottom: 40,
+    borderWidth: 1,
+    borderColor: "#EEE",
   },
   emptyText: {
     fontSize: 18,

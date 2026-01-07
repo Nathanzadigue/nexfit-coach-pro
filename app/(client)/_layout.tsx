@@ -1,6 +1,6 @@
-import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { StyleSheet, Platform } from "react-native";
+import { Tabs } from "expo-router";
+import { Platform, StyleSheet } from "react-native";
 
 export default function ClientLayout() {
   return (
@@ -27,7 +27,7 @@ export default function ClientLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Accueil",
+          title: "Home",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
           ),
@@ -38,7 +38,7 @@ export default function ClientLayout() {
       <Tabs.Screen
         name="bookings"
         options={{
-          title: "Réservations",
+          title: "Bookings",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar-outline" size={size} color={color} />
           ),
@@ -49,7 +49,7 @@ export default function ClientLayout() {
       <Tabs.Screen
         name="search"
         options={{
-          title: "Recherche",
+          title: "Search",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="search-outline" size={size} color={color} />
           ),
@@ -60,7 +60,7 @@ export default function ClientLayout() {
       <Tabs.Screen
         name="messages"
         options={{
-          title: "Messagerie",
+          title: "Messages",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="chatbubble-outline" size={size} color={color} />
           ),
@@ -71,7 +71,7 @@ export default function ClientLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profil",
+          title: "Profile",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person-outline" size={size} color={color} />
           ),
@@ -105,6 +105,12 @@ export default function ClientLayout() {
       {/* 🚫 NOUVELLE RÉSERVATION */}
       <Tabs.Screen
         name="booking/new"
+        options={{ href: null }}
+      />
+
+      {/* 🚫 ÉCRAN DE PAIEMENT */}
+      <Tabs.Screen
+        name="payment"
         options={{ href: null }}
       />
     </Tabs>
